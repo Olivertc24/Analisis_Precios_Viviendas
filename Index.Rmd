@@ -1,0 +1,229 @@
+---
+title: "Análisis Descriptivo de los Factores Determinantes en el Precio de la Vivienda"
+subtitle: "Un Estudio de Caso en el Estado de Washington (2014)"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    highlight: tango
+    code_folding: "hide"
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Planteamiento de la Investigación
+
+## 1. Planteamiento del Problema
+
+El mercado inmobiliario es uno de los pilares de la economía y un reflejo de la salud socioeconómica de una región. El precio de una vivienda es una variable compleja, influenciada por una multitud de factores intrínsecos (como el tamaño, el número de habitaciones o el estado de conservación) y extrínsecos (como la ubicación o la proximidad a servicios). Para compradores, vendedores, inversores y agentes inmobiliarios, la capacidad de comprender qué características tienen un mayor impacto en el valor de una propiedad es fundamental para la toma de decisiones informadas.
+
+Este estudio aborda la necesidad de cuantificar y describir las relaciones entre las características de las viviendas y sus precios de venta en el mercado del estado de Washington, con el fin de identificar los patrones que definen el valor inmobiliario en esta región.
+
+## 2. Objetivos
+
+### 2.1. Objetivo General
+Realizar un análisis estadístico descriptivo de los datos de precios de viviendas en el estado de Washington para identificar y describir las características más influyentes en la valoración de las propiedades durante el período de estudio.
+
+### 2.2. Objetivos Específicos
+1.  Describir la distribución estadística de los precios de las viviendas para comprender el rango de valores y su tendencia central.
+2.  Analizar la relación entre el precio y las características físicas clave de la vivienda, como la superficie habitable, el número de habitaciones y baños.
+3.  Evaluar cómo el estado de conservación y el año de construcción se relacionan con el precio final de venta.
+4.  Identificar las ciudades con los precios promedio de vivienda más elevados para mapear las zonas de mayor valor en la región.
+
+---
+
+# Marco de Referencia
+
+## 3. Marco Teórico
+
+Este estudio se apoya en la **estadística descriptiva** para resumir y organizar los datos de manera informativa. Se emplean **medidas de tendencia central** (media, mediana) para determinar el "precio típico" y **medidas de dispersión** (desviación estándar) para entender la variabilidad de los precios.
+
+El análisis de relaciones entre variables se aborda mediante **visualizaciones de datos**, como **diagramas de dispersión** (scatter plots) para explorar la correlación entre variables continuas (ej. precio vs. superficie) y **diagramas de caja** (box plots) para comparar distribuciones de precios entre categorías (ej. por número de habitaciones). Estos métodos permiten identificar tendencias y patrones de forma visual y efectiva, sentando las bases para modelos de valoración inmobiliaria más complejos.
+
+## 4. Marco Metodológico
+
+### 4.1. Enfoque y Tipo de Investigación
+La investigación adopta un **enfoque cuantitativo** de tipo **descriptivo-correlacional**. No solo busca describir las variables de forma aislada, sino también explorar la existencia y la forma de las relaciones entre ellas, sin llegar a establecer inferencias de causalidad.
+
+### 4.2. Fuente de Datos
+Se utiliza el conjunto de datos `data_house_price.csv`, que contiene registros de ventas de viviendas. Las variables clave para este análisis son: `price`, `bedrooms`, `bathrooms`, `sqft_living`, `sqft_lot`, `floors`, `condition`, `yr_built`, y `city`.
+
+### 4.3. Período de Referencia
+El conjunto de datos registra transacciones ocurridas principalmente durante el año **2014**.
+
+### 4.4. Procesamiento y Análisis de Datos
+El análisis se realiza con **R** y las librerías `dplyr` y `ggplot2`. El proceso consta de:
+1.  **Limpieza de Datos:** Carga del dataset, manejo de valores atípicos o no válidos (ej. precios en cero, número de habitaciones irreal), y corrección de tipos de datos.
+2.  **Análisis Descriptivo:** Cálculo de estadísticas resumen.
+3.  **Visualización:** Creación de gráficos para ilustrar distribuciones y relaciones. Se utiliza una paleta de colores consistente inspirada en "La noche estrellada".
+4.  **Tabulación:** Generación de tablas formateadas con `kable` y `kableExtra` para una presentación clara de los resultados.
+
+```{r Cargar Paquetes y Paleta de Colores, include=FALSE}
+# Cargar librerías
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(scales) # Para formatear etiquetas de los ejes
+
+# Definir la paleta de colores "Noche Estrellada"
+starry_night_palette <- c("#0B1C48", "#2D5F8C", "#4EA5D9", "#F2E3B3", "#F2C84B", "#7E6B4E")
+
+# Establecer un tema de ggplot para consistencia
+theme_set(theme_light(base_size = 14) + 
+          theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+                plot.subtitle = element_text(hjust = 0.5),
+                plot.caption = element_text(color = "grey50", hjust = 0)))
+```
+
+```{r Cargar y Limpiar Datos, include=FALSE}
+# Cargar el dataset
+df <- read.csv("https://raw.githubusercontent.com/Olivertc24/Analisis_Precios_Viviendas/refs/heads/main/data_house_price.csv")
+
+# Limpieza de datos
+# 1. Eliminar precios nulos o cero, que son claramente errores de datos.
+# 2. Eliminar outliers extremos en habitaciones (ej. más de 10)
+df_clean <- df %>%
+  filter(price > 0, bedrooms > 0, bedrooms < 10) %>%
+  mutate(
+    date = as.Date(date),
+    condition = as.factor(condition)
+  )
+```
+
+---
+
+# Resultados y Análisis
+
+## 5. Análisis General del Mercado Inmobiliario
+
+### 5.1. Distribución de los Precios
+
+Primero, se examina la distribución general de los precios para entender el rango de valores del mercado.
+
+```{r Tabla Estadisticas Precio}
+price_summary <- df_clean %>%
+  summarise(
+    N_Viviendas = n(),
+    Precio_Medio = mean(price),
+    Precio_Mediana = median(price),
+    Desv_Estandar = sd(price),
+    Precio_Minimo = min(price),
+    Precio_Maximo = max(price)
+  )
+
+kable(price_summary, 
+      caption = "Estadísticas Descriptivas de los Precios de Vivienda (USD)",
+      col.names = c("Nº de Viviendas", "Medio", "Mediana", "DE", "Mínimo", "Máximo"),
+      digits = 0) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)
+```
+
+```{r Histograma Precios}
+ggplot(df_clean, aes(x = price)) +
+  geom_histogram(fill = starry_night_palette[2], color = "white", bins = 100) +
+  scale_x_continuous(labels = dollar_format(scale = 1/1000, suffix = "K")) +
+  coord_cartesian(xlim = c(0, 2000000)) +
+  labs(title = "Distribución de los Precios de Vivienda",
+       subtitle = "La mayoría de las propiedades se concentran por debajo de $1M",
+       x = "Precio de Venta (USD)",
+       y = "Frecuencia")
+```
+
+**Análisis:** El precio medio de una vivienda en la muestra es de **$`r format(round(price_summary$Precio_Medio, 0), big.mark=",")`**. Sin embargo, la **mediana** es considerablemente más baja ($`r format(price_summary$Precio_Mediana, big.mark=",")`), lo que indica, al igual que en el histograma, una distribución **sesgada a la derecha**. Esto significa que la mayoría de las casas tienen un precio relativamente moderado, pero un pequeño número de propiedades de lujo elevan el promedio general.
+
+## 6. Relación entre Características y Precio
+
+### 6.1. Precio vs. Superficie Habitable (`sqft_living`)
+
+La superficie es intuitivamente uno de los factores más importantes en el precio.
+
+```{r Scatter Precio Superficie}
+ggplot(df_clean, aes(x = sqft_living, y = price)) +
+  geom_point(alpha = 0.2, color = starry_night_palette[1]) +
+  geom_smooth(method = "lm", color = starry_night_palette[5], se = FALSE) +
+  scale_y_continuous(labels = dollar_format(scale = 1/1000, suffix = "K")) +
+  labs(title = "Precio vs. Superficie Habitable",
+       subtitle = "A mayor superficie, mayor es el precio",
+       x = "Superficie Habitable (pies cuadrados)",
+       y = "Precio de Venta (USD)")
+```
+**Análisis:** El diagrama de dispersión muestra una **clara relación lineal positiva** entre la superficie habitable y el precio. A medida que aumenta el tamaño de la vivienda, su precio tiende a aumentar de manera consistente. La línea de tendencia confirma esta fuerte asociación.
+
+### 6.2. Influencia del Número de Habitaciones
+
+```{r Boxplot Precio Habitaciones}
+ggplot(df_clean, aes(x = as.factor(bedrooms), y = price, fill = as.factor(bedrooms))) +
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = rep(starry_night_palette, length.out = length(unique(df_clean$bedrooms)))) +
+  scale_y_continuous(labels = dollar_format(scale = 1/1000, suffix = "K")) +
+  coord_cartesian(ylim = c(0, 1500000)) +
+  labs(title = "Distribución del Precio por Número de Habitaciones",
+       x = "Número de Habitaciones",
+       y = "Precio de Venta (USD)")
+```
+**Análisis:** El precio mediano (la línea central de cada caja) aumenta a medida que se incrementa el número de habitaciones. Sin embargo, la variabilidad del precio también aumenta, como lo demuestran las cajas y bigotes más largos para viviendas con más habitaciones. Esto sugiere que, si bien más habitaciones suelen implicar un mayor precio, otros factores ganan importancia en viviendas más grandes.
+
+### 6.3. Influencia del Estado de Conservación
+
+```{r Barplot Precio Condicion, echo=FALSE}
+condition_price <- df_clean %>%
+  group_by(condition) %>%
+  summarise(Precio_Medio = mean(price))
+
+ggplot(condition_price, aes(x = condition, y = Precio_Medio, fill = condition)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_manual(values = starry_night_palette) +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(title = "Precio Medio por Estado de Conservación",
+       subtitle = "La condición de la propiedad es un factor clave",
+       x = "Estado de Conservación (1=Malo, 5=Excelente)",
+       y = "Precio Medio (USD)")
+```
+**Análisis:** Existe una relación directa y escalonada entre el estado de conservación de la vivienda y su precio medio. Las propiedades con una calificación de 5 (excelente) tienen, en promedio, un valor significativamente mayor que aquellas con calificaciones inferiores.
+
+## 7. Análisis Geográfico
+
+### 7.1. Ciudades con Mayor Precio Promedio
+
+Finalmente, se identifican las ciudades donde el mercado inmobiliario es más costoso.
+
+```{r Tabla Top 10 Ciudades, echo=FALSE}
+top_10_cities <- df_clean %>%
+  group_by(city) %>%
+  summarise(
+    Precio_Medio = mean(price),
+    N_Viviendas = n()
+  ) %>%
+  filter(N_Viviendas > 50) %>% # Filtrar para tener una media más estable
+  arrange(desc(Precio_Medio)) %>%
+  head(10)
+
+kable(top_10_cities, caption = "Top 10 Ciudades por Precio Medio de Vivienda (con >50 ventas)",
+      col.names = c("Ciudad", "Precio Medio (USD)", "Nº de Ventas"),
+      digits = 0) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  column_spec(1, bold = T) %>%
+  column_spec(2, bold = T, color = "white", background = starry_night_palette[2])
+```
+**Análisis:** Ciudades como **Medina**, **Bellevue** y **Mercer Island** se destacan como las más caras de la región, con precios medios que superan el millón de dólares. Esto subraya la importancia de la **ubicación (`location, location, location`)** como un factor premium en la valoración de propiedades.
+
+# Conclusiones
+
+Este análisis descriptivo del mercado de viviendas en el estado de Washington ha revelado varios patrones determinantes:
+
+1.  **La Superficie es el Rey:** La característica individual con la relación más fuerte y consistente con el precio de una vivienda es su superficie habitable. Esta relación es positiva y lineal.
+
+2.  **Más no Siempre es Exponencialmente Mejor:** Aunque más habitaciones y baños se correlacionan con precios más altos, el incremento en el valor no es tan directo como el de la superficie. La variabilidad de precios aumenta significativamente en viviendas más grandes, sugiriendo que la calidad de los acabados y la ubicación se vuelven factores diferenciadores cruciales.
+
+3.  **La Calidad Importa:** El estado de conservación de una propiedad tiene un impacto directo y significativo en su precio de venta promedio. Una vivienda en excelente estado puede valer, en promedio, casi el doble que una en estado regular.
+
+4.  **La Ubicación es un Factor Premium:** El análisis geográfico confirma el viejo adagio inmobiliario. Existen "bolsas" de alto valor, con ciudades específicas donde el precio medio de la vivienda es drásticamente superior al del resto de la región.
+
+En resumen, el precio de una vivienda en este mercado puede ser descrito en gran medida por una combinación de su tamaño, su condición y, sobre todo, su ubicación.
