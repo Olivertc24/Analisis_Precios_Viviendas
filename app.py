@@ -89,12 +89,18 @@ st.subheader("Visualizaciones Interactivas")
 
 if not filtered_df.empty:
     # Gráfico de dispersión: Precio vs. Superficie
+    # Asegúrate de que esta línea esté exactamente así: fig, ax
     fig, ax = plt.subplots(figsize=(10, 6))
+
     ax.scatter(filtered_df['sqft_living'], filtered_df['price'], alpha=0.5)
+    
+    # Todos estos métodos se llaman sobre 'ax'
     ax.set_title("Precio vs. Superficie Habitable (sqft)")
     ax.set_xlabel("Superficie (sqft)")
     ax.set_ylabel("Precio ($)")
     ax.grid(True)
+    
+    # Finalmente, se muestra la figura completa 'fig'
     st.pyplot(fig)
 else:
     st.warning("No hay datos disponibles para los filtros seleccionados.")
