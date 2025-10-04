@@ -1,119 +1,214 @@
-# Importar las librerías necesarias
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import os
+import plotly.express as px
+import base64
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(
-    page_title="Análisis de Precios de Viviendas",
-    page_icon="🏠",
-    layout="wide"
-)
+# ----------------------------------
+# CONFIGURACIÓN DE LA PÁGINA
+# ----------------------------------
+# Usamos 'wide' para que el contenido ocupe todo el ancho de la pantalla
+st.set_page_config(page_title="Dashboard de Precios de Viviendas",
+                   page_icon="🏠",
+                   layout="wide")
 
-# --- CARGA DE DATOS (VERSIÓN CORREGIDA Y ROBUSTA) ---
+# ----------------------------------
+# FUNCIONES AUXILIARES
+# ----------------------------------
+
+# Función para cargar y cachear los datos para mejorar el rendimiento
 @st.cache_data
-def load_data(filepath):
-    """Carga los datos desde una ruta absoluta."""
+def cargar_datos(filepath):
+    """Carga los datos desde un archivo CSV."""
     try:
         df = pd.read_csv(filepath)
-        df['date'] = pd.to_datetime(df['date'])
-        # Limpiamos datos erróneos (precios en 0 o muy bajos)
-        df = df[df['price'] > 1000]
+        # Convertir 'Fecha' a formato de fecha para un mejor manejo
+        df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
+        # Asegurarnos que las columnas numéricas no tengan valores nulos que den problemas
+        for col in ['Precio', 'Habitaciones', 'Baños', 'Metros_Cuadrados']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df.dropna(subset=['Precio', 'Metros_Cuadrados', 'Fecha'], inplace=True)
         return df
     except FileNotFoundError:
-        st.error(f"Error Crítico: No se encontró el archivo en la ruta '{filepath}'.")
-        st.info("Asegúrate de que 'data_house_price.csv' se ha añadido y subido a tu repositorio de GitHub.")
+        st.error(f"Error: No se encontró el archivo en la ruta '{filepath}'. Asegúrate de que el archivo .csv esté en el mismo directorio que app.py")
         return None
 
-# --- CONSTRUIR LA RUTA ABSOLUTA AL ARCHIVO CSV ---
-# Esta es la parte clave para evitar el error 'FileNotFoundError' en Render.
+# Función para obtener la imagen de fondo en formato base64
+# Esto es necesario para que Streamlit pueda mostrar una imagen de fondo local
+@st.cache_data
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_png_as_page_bg(png_file):
+    """Aplica una imagen PNG como fondo de la página."""
+    bin_str = get_base64_of_bin_file(png_file)
+    page_bg_img = f'''
+    <style>
+    .stApp {{
+    background-image: url("data:image/png;base64,{bin_str}");
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: scroll;
+    }}
+    </style>
+    '''
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# ----------------------------------
+# CARGA DE DATOS Y ESTILO
+# ----------------------------------
+
+# Reemplaza 'nombre_del_archivo.csv' con el nombre de tu archivo de datos
+DATA_PATH = 'precios_viviendas.csv'
+BACKGROUND_IMAGE_PATH = 'background.png' # Asegúrate de tener una imagen con este nombre
+
+# Cargar los datos
+datos = cargar_datos(DATA_PATH)
+
+# Aplicar el fondo (si el archivo de imagen existe)
 try:
-    # Obtiene la ruta del directorio donde se encuentra el script 'app.py'
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    # Une esa ruta con el nombre del archivo para crear una ruta completa
-    FILE_PATH = os.path.join(SCRIPT_DIR, "data_house_price.csv")
-except NameError:
-    # Si __file__ no está definido (puede pasar en algunos entornos), usa la ruta relativa
-    FILE_PATH = "data_house_price.csv"
+    set_png_as_page_bg(BACKGROUND_IMAGE_PATH)
+except FileNotFoundError:
+    st.warning("No se encontró la imagen de fondo 'background.png'. Se usará un fondo de color sólido.")
 
-# Cargar el dataframe usando la ruta construida
-df = load_data(FILE_PATH)
+# Paleta de colores inspirada en "La Noche Estrellada"
+STARRY_NIGHT_COLORS = ['#0B3D91', '#F0E68C', '#FFD700', '#1E90FF', '#4682B4']
 
-# Si el dataframe no se carga, detenemos la ejecución de la app
-if df is None:
-    st.stop()
+# ----------------------------------
+# CUERPO PRINCIPAL DEL DASHBOARD
+# ----------------------------------
 
-# --- TÍTULO PRINCIPAL ---
-st.title("🏠 Dashboard Interactivo de Precios de Viviendas")
-st.write("Explora los datos de precios de viviendas del condado de King, WA, EE. UU. Usa los filtros de la barra lateral para segmentar los datos.")
+if datos is not None:
+    # Título principal con un toque de estilo
+    st.title("🏠 Dashboard Interactivo de Precios de Viviendas")
+    st.markdown("### Explora las tendencias del mercado inmobiliario con la magia de Van Gogh")
+    st.markdown("---")
 
-# --- BARRA LATERAL (SIDEBAR) CON FILTROS ---
-st.sidebar.header("Filtros de Búsqueda")
+    # ----------------------------------
+    # BARRA LATERAL CON FILTROS
+    # ----------------------------------
+    with st.sidebar:
+        st.header("🎨 Filtros de Visualización")
 
-# Filtro por ciudad (multiselector)
-cities = sorted(df['city'].unique())
-selected_cities = st.sidebar.multiselect(
-    "Selecciona una o varias ciudades:",
-    options=cities,
-    default=["Seattle", "Renton", "Bellevue"] # Ciudades por defecto
-)
+        # Filtro por ciudad (multiselección)
+        ciudades_disponibles = sorted(datos['Ciudad'].unique())
+        ciudades_seleccionadas = st.multiselect(
+            "Selecciona la(s) Ciudad(es):",
+            options=ciudades_disponibles,
+            default=ciudades_disponibles[:3] # Seleccionamos las primeras 3 por defecto
+        )
 
-# Filtro por rango de precios (slider)
-min_price, max_price = float(df['price'].min()), float(df['price'].max())
-price_range = st.sidebar.slider(
-    "Rango de precios ($):",
-    min_value=min_price,
-    max_value=max_price,
-    value=(min_price, max_price/2) # Rango por defecto
-)
+        # Filtro por rango de precios (slider)
+        precio_min = int(datos['Precio'].min())
+        precio_max = int(datos['Precio'].max())
+        precios_seleccionados = st.slider(
+            "Rango de Precios ($):",
+            min_value=precio_min,
+            max_value=precio_max,
+            value=(precio_min, precio_max)
+        )
 
-# Aplicar filtros al DataFrame
-if not selected_cities:
-    # Si no hay ciudades seleccionadas, solo filtra por precio
-    filtered_df = df[
-        (df['price'] >= price_range[0]) &
-        (df['price'] <= price_range[1])
+        # Filtro por número de habitaciones
+        habitaciones_disponibles = sorted(datos['Habitaciones'].unique())
+        habitaciones_seleccionadas = st.multiselect(
+            "Número de Habitaciones:",
+            options=habitaciones_disponibles,
+            default=habitaciones_disponibles
+        )
+
+    # Filtrar el DataFrame principal según la selección del usuario
+    datos_filtrados = datos[
+        (datos['Ciudad'].isin(ciudades_seleccionadas)) &
+        (datos['Precio'].between(precios_seleccionados[0], precios_seleccionados[1])) &
+        (datos['Habitaciones'].isin(habitaciones_seleccionadas))
     ]
-else:
-    # Si hay ciudades seleccionadas, filtra por ciudad y precio
-    filtered_df = df[
-        (df['city'].isin(selected_cities)) &
-        (df['price'] >= price_range[0]) &
-        (df['price'] <= price_range[1])
-    ]
 
-# --- CUERPO PRINCIPAL DEL DASHBOARD ---
+    # Mostrar advertencia si no hay datos con los filtros aplicados
+    if datos_filtrados.empty:
+        st.warning("No se encontraron viviendas que cumplan con los criterios de búsqueda. Por favor, ajusta los filtros.")
+    else:
+        # ----------------------------------
+        # MÉTRICAS PRINCIPALES (KPIs)
+        # ----------------------------------
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(label="**Precio Promedio**",
+                      value=f"${datos_filtrados['Precio'].mean():,.2f}")
+        with col2:
+            st.metric(label="**Total de Viviendas**",
+                      value=f"{len(datos_filtrados):,}")
+        with col3:
+            st.metric(label="**M² Promedio**",
+                      value=f"{datos_filtrados['Metros_Cuadrados'].mean():.2f} m²")
 
-st.header("Análisis de Viviendas Filtradas")
+        st.markdown("---")
 
-# --- MÉTRICAS CLAVE ---
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric(label="Número de Viviendas", value=f"{len(filtered_df):,}")
-with col2:
-    avg_price = filtered_df['price'].mean() if not filtered_df.empty else 0
-    st.metric(label="Precio Promedio", value=f"${avg_price:,.0f}")
-with col3:
-    avg_sqft = filtered_df['sqft_living'].mean() if not filtered_df.empty else 0
-    st.metric(label="Superficie Promedio", value=f"{avg_sqft:,.0f} sqft")
+        # ----------------------------------
+        # VISUALIZACIONES
+        # ----------------------------------
+        col_graf1, col_graf2 = st.columns(2)
 
-st.markdown("---")
+        with col_graf1:
+            st.subheader("Precio a lo largo del Tiempo")
+            fig_linea_tiempo = px.line(
+                datos_filtrados.sort_values('Fecha'),
+                x='Fecha',
+                y='Precio',
+                color='Ciudad',
+                title="Evolución del Precio Promedio por Ciudad",
+                labels={'Precio': 'Precio ($)', 'Fecha': 'Año'},
+                color_discrete_sequence=STARRY_NIGHT_COLORS
+            )
+            # Personalización del estilo del gráfico
+            fig_linea_tiempo.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0.5)',
+                font_color='white'
+            )
+            st.plotly_chart(fig_linea_tiempo, use_container_width=True)
 
-# --- VISUALIZACIONES ---
-st.subheader("Visualizaciones Interactivas")
+        with col_graf2:
+            st.subheader("Distribución de Precios por Ciudad")
+            fig_boxplot = px.box(
+                datos_filtrados,
+                x='Ciudad',
+                y='Precio',
+                color='Ciudad',
+                title="Rango de Precios en Ciudades Seleccionadas",
+                labels={'Precio': 'Precio ($)', 'Ciudad': 'Ciudad'},
+                color_discrete_sequence=STARRY_NIGHT_COLORS
+            )
+            fig_boxplot.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0.5)',
+                font_color='white'
+            )
+            st.plotly_chart(fig_boxplot, use_container_width=True)
 
-if not filtered_df.empty:
-    # Gráfico de dispersión: Precio vs. Superficie
-    st.write("#### Relación entre Precio y Superficie")
-    # Aseguramos que 'fig' y 'ax' se manejen correctamente
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(filtered_df['sqft_living'], filtered_df['price'], alpha=0.5)
-    ax.set_title("Precio vs. Superficie Habitable (sqft)")
-    ax.set_xlabel("Superficie (sqft)")
-    ax.set_ylabel("Precio ($)")
-    ax.grid(True)
-    st.pyplot(fig)
+        st.subheader("Relación entre Precio y Metros Cuadrados")
+        fig_dispersion = px.scatter(
+            datos_filtrados,
+            x='Metros_Cuadrados',
+            y='Precio',
+            color='Ciudad',
+            size='Precio',
+            hover_data=['Habitaciones', 'Baños'],
+            title="Precio vs. Superficie (m²)",
+            labels={'Metros_Cuadrados': 'Metros Cuadrados', 'Precio': 'Precio ($)'},
+            color_discrete_sequence=STARRY_NIGHT_COLORS
+        )
+        fig_dispersion.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0.5)',
+            font_color='white'
+        )
+        st.plotly_chart(fig_dispersion, use_container_width=True)
+
+        # Mostrar tabla de datos filtrados
+        with st.expander("Ver datos filtrados"):
+            st.dataframe(datos_filtrados)
+
 else:
     st.warning("No hay datos disponibles para los filtros seleccionados.")
 
@@ -122,3 +217,4 @@ st.markdown("---")
 if st.checkbox("Mostrar tabla de datos filtrados"):
     st.write(f"Mostrando {len(filtered_df)} registros")
     st.dataframe(filtered_df)
+
