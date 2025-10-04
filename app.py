@@ -1,97 +1,124 @@
+# Importar las librerías necesarias
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
+import os
 
-# Cargar los datos
-df = pd.read_csv('data_house_price.csv')
+# --- CONFIGURACIÓN DE LA PÁGINA ---
+st.set_page_config(
+    page_title="Análisis de Precios de Viviendas",
+    page_icon="🏠",
+    layout="wide"
+)
 
-# Configuración de la página
-st.set_page_config(layout="wide", page_title="Análisis de Precios de Viviendas")
+# --- CARGA DE DATOS (VERSIÓN CORREGIDA Y ROBUSTA) ---
+@st.cache_data
+def load_data(filepath):
+    """Carga los datos desde una ruta absoluta."""
+    try:
+        df = pd.read_csv(filepath)
+        df['date'] = pd.to_datetime(df['date'])
+        # Limpiamos datos erróneos (precios en 0 o muy bajos)
+        df = df[df['price'] > 1000]
+        return df
+    except FileNotFoundError:
+        st.error(f"Error Crítico: No se encontró el archivo en la ruta '{filepath}'.")
+        st.info("Asegúrate de que 'data_house_price.csv' se ha añadido y subido a tu repositorio de GitHub.")
+        return None
 
-# Tema "La noche estrellada" usando CSS
-st.markdown("""
-    <style>
-        .stApp {
-            background-color: #001f3f;
-            color: #ffffff;
-        }
-        .st-emotion-cache-16txtl3 {
-            color: #F0E68C;
-        }
-        h1, h2, h3 {
-            color: #FFD700;
-        }
-        .stPlotlyChart {
-            border-radius: 10px;
-            padding: 10px;
-            background-color: #003366;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# --- CONSTRUIR LA RUTA ABSOLUTA AL ARCHIVO CSV ---
+# Esta es la parte clave para evitar el error 'FileNotFoundError' en Render.
+try:
+    # Obtiene la ruta del directorio donde se encuentra el script 'app.py'
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    # Une esa ruta con el nombre del archivo para crear una ruta completa
+    FILE_PATH = os.path.join(SCRIPT_DIR, "data_house_price.csv")
+except NameError:
+    # Si __file__ no está definido (puede pasar en algunos entornos), usa la ruta relativa
+    FILE_PATH = "data_house_price.csv"
 
-st.title('Dashboard de Análisis de Precios de Viviendas en Washington')
-st.write('Este dashboard presenta un análisis de los precios de las viviendas en el estado de Washington.')
+# Cargar el dataframe usando la ruta construida
+df = load_data(FILE_PATH)
 
-# --- Fila 1 ---
-col1, col2 = st.columns(2)
+# Si el dataframe no se carga, detenemos la ejecución de la app
+if df is None:
+    st.stop()
 
+# --- TÍTULO PRINCIPAL ---
+st.title("🏠 Dashboard Interactivo de Precios de Viviendas")
+st.write("Explora los datos de precios de viviendas del condado de King, WA, EE. UU. Usa los filtros de la barra lateral para segmentar los datos.")
+
+# --- BARRA LATERAL (SIDEBAR) CON FILTROS ---
+st.sidebar.header("Filtros de Búsqueda")
+
+# Filtro por ciudad (multiselector)
+cities = sorted(df['city'].unique())
+selected_cities = st.sidebar.multiselect(
+    "Selecciona una o varias ciudades:",
+    options=cities,
+    default=["Seattle", "Renton", "Bellevue"] # Ciudades por defecto
+)
+
+# Filtro por rango de precios (slider)
+min_price, max_price = float(df['price'].min()), float(df['price'].max())
+price_range = st.sidebar.slider(
+    "Rango de precios ($):",
+    min_value=min_price,
+    max_value=max_price,
+    value=(min_price, max_price/2) # Rango por defecto
+)
+
+# Aplicar filtros al DataFrame
+if not selected_cities:
+    # Si no hay ciudades seleccionadas, solo filtra por precio
+    filtered_df = df[
+        (df['price'] >= price_range[0]) &
+        (df['price'] <= price_range[1])
+    ]
+else:
+    # Si hay ciudades seleccionadas, filtra por ciudad y precio
+    filtered_df = df[
+        (df['city'].isin(selected_cities)) &
+        (df['price'] >= price_range[0]) &
+        (df['price'] <= price_range[1])
+    ]
+
+# --- CUERPO PRINCIPAL DEL DASHBOARD ---
+
+st.header("Análisis de Viviendas Filtradas")
+
+# --- MÉTRICAS CLAVE ---
+col1, col2, col3 = st.columns(3)
 with col1:
-    st.header("Distribución de Precios de Viviendas")
-    fig, ax = plt.subplots()
-    sns.histplot(df['price'], bins=50, kde=True, color='gold', ax=ax)
-    ax.set_facecolor('#001f3f')
-    fig.set_facecolor('#001f3f')
-    ax.tick_params(colors='white', which='both')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
-    ax.title.set_color('white')
-    plt.xlabel('Precio')
-    plt.ylabel('Frecuencia')
-    st.pyplot(fig)
-
+    st.metric(label="Número de Viviendas", value=f"{len(filtered_df):,}")
 with col2:
-    st.header("Precio vs. Superficie habitable (sqft_living)")
-    fig, ax = plt.subplots()
-    sns.scatterplot(x='sqft_living', y='price', data=df, color='cyan', ax=ax, alpha=0.5)
-    ax.set_facecolor('#001f3f')
-    fig.set_facecolor('#001f3f')
-    ax.tick_params(colors='white', which='both')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
-    ax.title.set_color('white')
-    plt.xlabel('Superficie habitable (pies cuadrados)')
-    plt.ylabel('Precio')
-    st.pyplot(fig)
-
-# --- Fila 2 ---
-col3, col4 = st.columns(2)
-
+    avg_price = filtered_df['price'].mean() if not filtered_df.empty else 0
+    st.metric(label="Precio Promedio", value=f"${avg_price:,.0f}")
 with col3:
-    st.header("Precio por Condición de la Vivienda")
-    fig, ax = plt.subplots()
-    sns.boxplot(x='condition', y='price', data=df, palette='viridis', ax=ax)
-    ax.set_facecolor('#001f3f')
-    fig.set_facecolor('#001f3f')
-    ax.tick_params(colors='white', which='both')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
-    ax.title.set_color('white')
-    plt.xlabel('Condición')
-    plt.ylabel('Precio')
-    st.pyplot(fig)
+    avg_sqft = filtered_df['sqft_living'].mean() if not filtered_df.empty else 0
+    st.metric(label="Superficie Promedio", value=f"{avg_sqft:,.0f} sqft")
 
-with col4:
-    st.header("Top 10 Ciudades por Precio Promedio")
-    top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
-    fig, ax = plt.subplots()
-    sns.barplot(x=top_cities.values, y=top_cities.index, palette='plasma', ax=ax)
-    ax.set_facecolor('#001f3f')
-    fig.set_facecolor('#001f3f')
-    ax.tick_params(colors='white', which='both')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
-    ax.title.set_color('white')
-    plt.xlabel('Precio Promedio')
-    plt.ylabel('Ciudad')
+st.markdown("---")
+
+# --- VISUALIZACIONES ---
+st.subheader("Visualizaciones Interactivas")
+
+if not filtered_df.empty:
+    # Gráfico de dispersión: Precio vs. Superficie
+    st.write("#### Relación entre Precio y Superficie")
+    # Aseguramos que 'fig' y 'ax' se manejen correctamente
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.scatter(filtered_df['sqft_living'], filtered_df['price'], alpha=0.5)
+    ax.set_title("Precio vs. Superficie Habitable (sqft)")
+    ax.set_xlabel("Superficie (sqft)")
+    ax.set_ylabel("Precio ($)")
+    ax.grid(True)
     st.pyplot(fig)
+else:
+    st.warning("No hay datos disponibles para los filtros seleccionados.")
+
+# --- TABLA DE DATOS ---
+st.markdown("---")
+if st.checkbox("Mostrar tabla de datos filtrados"):
+    st.write(f"Mostrando {len(filtered_df)} registros")
+    st.dataframe(filtered_df)
