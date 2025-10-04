@@ -5,5 +5,5 @@ El mercado inmobiliario es uno de los pilares de la economía y un reflejo de la
 Este estudio aborda la necesidad de cuantificar y describir las relaciones entre las características de las viviendas y sus precios de venta en el mercado del estado de Washington, con el fin de identificar los patrones que definen el valor inmobiliario en esta región.
 
 
-Informe Dinamico con Rmarkdown: https://analisis-precios-viviendas.onrender.com
-Dasboard con streamlit:
+###### Informe Dinamico con Rmarkdown: https://analisis-precios-viviendas.onrender.com
+###### Dasboard con streamlit:
