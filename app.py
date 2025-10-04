@@ -1,92 +1,105 @@
-%%writefile app.py
+# Importar las librerías necesarias
 import streamlit as st
 import pandas as pd
-import numpy as np
-from vega_datasets import data
+import matplotlib.pyplot as plt
 
-# --- Configuración de la Página ---
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
-    page_title="Dashboard de Vuelos",
-    page_icon="✈️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Análisis de Precios de Viviendas",
+    page_icon="🏠",
+    layout="wide"
 )
 
-# --- Título y Descripción ---
-st.title("✈️ Dashboard Interactivo de Vuelos en EE. UU.")
-st.markdown("""
-Bienvenido a este dashboard interactivo para el análisis de vuelos.
-Utiliza los filtros en la barra lateral para explorar los datos por aerolínea y distancia.
-""")
+# --- CARGA DE DATOS ---
+@st.cache_data
+def load_data(filepath):
+    """Carga y preprocesa los datos de precios de viviendas."""
+    try:
+        df = pd.read_csv(filepath)
+        df['date'] = pd.to_datetime(df['date'])
+        # Limpiamos datos erróneos (precios en 0 o muy bajos)
+        df = df[df['price'] > 1000]
+        return df
+    except FileNotFoundError:
+        st.error(f"Error: No se encontró el archivo '{filepath}'. Asegúrate de que está en la misma carpeta.")
+        return None
 
-# --- Carga de Datos Optimizada ---
-@st.cache_data # Decorador para cachear los datos y mejorar el rendimiento
-def load_data():
-    """Carga y pre-procesa el dataset de vuelos."""
-    df = data.flights_2k()  # Dataset con 2,000 registros de vuelos
-    df['delay'] = df['delay'].fillna(0).astype(int)
-    df['distance'] = df['distance'].astype(int)
-    df['date'] = pd.to_datetime(df['date'])
-    return df
+# Cargar el dataframe
+df = load_data("data_house_price.csv")
 
-flights_df = load_data()
+if df is None:
+    st.stop()
 
-# --- Barra Lateral de Filtros (Sidebar) ---
-with st.sidebar:
-    st.header("⚙️ Filtros de Visualización")
+# --- TÍTULO PRINCIPAL ---
+st.title("🏠 Dashboard Interactivo de Precios de Viviendas")
+st.write("Explora los datos de precios de viviendas del condado de King, WA, EE. UU. Usa los filtros de la barra lateral para segmentar los datos.")
 
-    # Filtro multi-selección para aerolíneas (usando el aeropuerto de origen)
-    unique_origins = sorted(flights_df['origin'].unique())
-    selected_carrier = st.multiselect(
-        "✈️ Selecciona Aerolíneas (por origen):",
-        options=unique_origins,
-        default=unique_origins
-    )
+# --- BARRA LATERAL (SIDEBAR) CON FILTROS ---
+st.sidebar.header("Filtros de Búsqueda")
 
-    # Filtro de rango para la distancia
-    min_dist, max_dist = int(flights_df['distance'].min()), int(flights_df['distance'].max())
-    selected_distance = st.slider(
-        "📍 Filtra por Distancia del Vuelo (millas):",
-        min_value=min_dist,
-        max_value=max_dist,
-        value=(min_dist, max_dist)
-    )
+# Filtro por ciudad (multiselector)
+cities = sorted(df['city'].unique())
+selected_cities = st.sidebar.multiselect(
+    "Selecciona una o varias ciudades:",
+    options=cities,
+    default=["Seattle", "Renton", "Bellevue"] # Ciudades por defecto
+)
 
-# Aplicar filtros al DataFrame principal
-filtered_df = flights_df[
-    (flights_df['origin'].isin(selected_carrier)) &
-    (flights_df['distance'].between(selected_distance[0], selected_distance[1]))
-]
+# Filtro por rango de precios (slider)
+min_price, max_price = int(df['price'].min()), int(df['price'].max())
+price_range = st.sidebar.slider(
+    "Rango de precios ($):",
+    min_value=min_price,
+    max_value=max_price,
+    value=(min_price, max_price/2) # Rango por defecto
+)
 
-# --- Cuerpo Principal del Dashboard ---
+# Aplicar filtros al DataFrame
+if not selected_cities:
+    filtered_df = df[
+        (df['price'] >= price_range[0]) &
+        (df['price'] <= price_range[1])
+    ]
+else:
+    filtered_df = df[
+        (df['city'].isin(selected_cities)) &
+        (df['price'] >= price_range[0]) &
+        (df['price'] <= price_range[1])
+    ]
 
-# 1. Métricas Clave en Columnas
-st.header("📊 Métricas Generales")
+# --- CUERPO PRINCIPAL DEL DASHBOARD ---
+
+st.header("Análisis de Viviendas Filtradas")
+
+# --- MÉTRICAS CLAVE ---
 col1, col2, col3 = st.columns(3)
-
-total_flights = filtered_df.shape[0]
-avg_delay = int(filtered_df['delay'].mean())
-total_distance = int(filtered_df['distance'].sum())
-
-col1.metric("Vuelos Totales Filtrados", f"{total_flights:,}")
-col2.metric("Retraso Promedio", f"{avg_delay} min")
-col3.metric("Distancia Total Recorrida", f"{total_distance:,} millas")
+with col1:
+    st.metric(label="Número de Viviendas", value=f"{len(filtered_df):,}")
+with col2:
+    avg_price = filtered_df['price'].mean() if not filtered_df.empty else 0
+    st.metric(label="Precio Promedio", value=f"${avg_price:,.0f}")
+with col3:
+    avg_sqft = filtered_df['sqft_living'].mean() if not filtered_df.empty else 0
+    st.metric(label="Superficie Promedio", value=f"{avg_sqft:,.0f} sqft")
 
 st.markdown("---")
 
-# 2. Visualizaciones
-st.header("📈 Visualizaciones Interactivas")
+# --- VISUALIZACIONES ---
+st.subheader("Visualizaciones Interactivas")
 
-# Gráfico de Barras: Vuelos por Aeropuerto de Origen
-st.subheader("Número de Vuelos por Aeropuerto de Origen")
-flights_by_origin = filtered_df['origin'].value_counts()
-st.bar_chart(flights_by_origin)
+if not filtered_df.empty:
+    # Gráfico de dispersión: Precio vs. Superficie
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.scatter(filtered_df['sqft_living'], filtered_df['price'], alpha=0.5)
+    ax.set_title("Precio vs. Superficie Habitable (sqft)")
+    ax.set_xlabel("Superficie (sqft)")
+    ax.set_ylabel("Precio ($)")
+    ax.grid(True)
+    st.pyplot(fig)
+else:
+    st.warning("No hay datos disponibles para los filtros seleccionados.")
 
-# Gráfico de Línea: Retraso Promedio a lo largo del tiempo
-st.subheader("Evolución del Retraso Promedio")
-delay_by_date = filtered_df.groupby(filtered_df['date'].dt.date)['delay'].mean()
-st.line_chart(delay_by_date)
-
-# 3. Vista de Datos Crudos (Opcional)
-with st.expander("Ver Datos Crudos Filtrados"):
+# --- TABLA DE DATOS ---
+if st.checkbox("Mostrar tabla de datos filtrados"):
+    st.write(f"Mostrando {len(filtered_df)} registros")
     st.dataframe(filtered_df)
