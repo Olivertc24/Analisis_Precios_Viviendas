@@ -16,7 +16,7 @@ st.set_page_config(
 def load_data(filepath):
     """Carga los datos desde una ruta absoluta."""
     try:
-        df = pd.read_csv(filepath)
+        df = pd.read_csv("/workspaces/Analisis_Precios_Viviendas/data_house_price.csv")
         df['date'] = pd.to_datetime(df['date'])
         df = df[df['price'] > 1000]
         return df
