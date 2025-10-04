@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import os  # <-- AÑADE ESTA LÍNEA
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -10,22 +11,29 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CARGA DE DATOS ---
+# --- CARGA DE DATOS (VERSIÓN CORREGIDA Y ROBUSTA) ---
 @st.cache_data
 def load_data(filepath):
-    """Carga y preprocesa los datos de precios de viviendas."""
+    """Carga los datos desde una ruta absoluta."""
     try:
         df = pd.read_csv(filepath)
         df['date'] = pd.to_datetime(df['date'])
-        # Limpiamos datos erróneos (precios en 0 o muy bajos)
         df = df[df['price'] > 1000]
         return df
     except FileNotFoundError:
-        st.error(f"Error: No se encontró el archivo '{filepath}'. Asegúrate de que está en la misma carpeta.")
+        st.error(f"Error Crítico: No se encontró el archivo en la ruta '{filepath}'.")
+        st.info("Asegúrate de que 'data_house_price.csv' está en la raíz de tu repositorio de GitHub.")
         return None
 
-# Cargar el dataframe
-df = load_data("data_house_price.csv")
+# --- CONSTRUIR LA RUTA ABSOLUTA AL ARCHIVO CSV ---
+# Esta es la parte clave de la solución.
+# Obtiene la ruta del directorio donde se encuentra el script 'app.py'
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Une esa ruta con el nombre del archivo para crear una ruta completa
+FILE_PATH = os.path.join(SCRIPT_DIR, "data_house_price.csv")
+
+# Cargar el dataframe usando la ruta absoluta
+df = load_data(FILE_PATH)
 
 if df is None:
     st.stop()
