@@ -61,7 +61,6 @@ def set_png_as_page_bg(png_file):
 
 # Reemplaza 'nombre_del_archivo.csv' con el nombre de tu archivo de datos
 DATA_PATH = 'precios_viviendas.csv'
-BACKGROUND_IMAGE_PATH = 'background.png' # Asegúrate de tener una imagen con este nombre
 
 # Cargar los datos
 datos = cargar_datos(DATA_PATH)
@@ -100,8 +99,8 @@ if datos is not None:
         )
 
         # Filtro por rango de precios (slider)
-        precio_min = int(datos['Precio'].min())
-        precio_max = int(datos['Precio'].max())
+        precio_min = float(datos['Precio'].min())
+        precio_max = float(datos['Precio'].max())
         precios_seleccionados = st.slider(
             "Rango de Precios ($):",
             min_value=precio_min,
