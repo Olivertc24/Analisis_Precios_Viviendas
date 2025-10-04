@@ -7,3 +7,7 @@ Este estudio aborda la necesidad de cuantificar y describir las relaciones entre
 
 ###### Informe Dinamico con Rmarkdown: https://analisis-precios-viviendas.onrender.com
 ###### Dasboard con streamlit: https://dashboard-analisis-precios-viviendas.onrender.com
+
+![Static Badge](https://img.shields.io/badge/HTML-red) ![Static Badge](https://img.shields.io/badge/R-blue) ![Static Badge](https://img.shields.io/badge/Python-yellow) 
+
+
