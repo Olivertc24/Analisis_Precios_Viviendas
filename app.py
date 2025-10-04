@@ -60,7 +60,7 @@ selected_cities = st.sidebar.multiselect(
 )
 
 # Filtro por rango de precios (slider)
-min_price, max_price = int(df['price'].min()), int(df['price'].max())
+min_price, max_price = float(df['price'].min()), float(df['price'].max())
 price_range = st.sidebar.slider(
     "Rango de precios ($):",
     min_value=min_price,
