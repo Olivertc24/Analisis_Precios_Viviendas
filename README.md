@@ -6,4 +6,4 @@ Este estudio aborda la necesidad de cuantificar y describir las relaciones entre
 
 
 ###### Informe Dinamico con Rmarkdown: https://analisis-precios-viviendas.onrender.com
-###### Dasboard con streamlit:
+###### Dasboard con streamlit: https://dashboard-analisis-precios-viviendas.onrender.com
