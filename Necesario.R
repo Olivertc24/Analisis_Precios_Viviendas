@@ -15,3 +15,8 @@ create_github_token()
 ## Configuramos token
 library(gitcreds)
 gitcreds_set()
+
+
+## Committ
+
+Se incorpora nueva configuracion
